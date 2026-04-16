@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import stats, signal
+import math
 
 def higuchi_fd(x, kmax=10):
     """
@@ -18,7 +19,7 @@ def higuchi_fd(x, kmax=10):
     
     # Fit line to log-log plot
     log_k = np.log(1.0 / np.arange(1, kmax + 1))
-    log_L = np.log(L)
+    log_L = np.log(L + 1e-10) # Stabilized with epsilon
     log_L = log_L[~np.isnan(log_L) & ~np.isinf(log_L)]
     log_k = log_k[:len(log_L)]
     
@@ -49,13 +50,12 @@ def permutation_entropy(x, order=3, delay=1):
     
     _, counts = np.unique(hashed, return_counts=True)
     p = counts / counts.sum()
-    pe = -np.sum(p * np.log2(p))
+    pe = -np.sum(p * np.log2(p + 1e-10)) # Stabilized with epsilon
     
     # Normalize
     pe = pe / np.log2(math.factorial(order)) if order > 1 else 0.0
     return pe
 
-import math # required for permutation_entropy
 
 def extract_features(data, sfreq=256):
     """

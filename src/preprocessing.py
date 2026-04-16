@@ -35,10 +35,16 @@ def preprocess_eeg_window(data, sfreq, target_sfreq=256.0):
         b_notch, a_notch = signal.iirnotch(50.0, 30.0, current_sfreq)
         data = signal.filtfilt(b_notch, a_notch, data, axis=1)
         
-    # 4. Z-score normalization
-    mean = np.mean(data, axis=1, keepdims=True)
-    std = np.std(data, axis=1, keepdims=True)
-    std[std == 0] = 1.0 # avoid division by zero
-    data = (data - mean) / std
+    # 4. Robust scaling (Per-channel, per-window)
+    # X = (X - median) / IQR
+    median = np.median(data, axis=1, keepdims=True)
+    q75, q25 = np.percentile(data, [75, 25], axis=1)
+    iqr = (q75 - q25).reshape(-1, 1)
+    
+    iqr[iqr == 0] = 1.0 # avoid division by zero
+    data = (data - median) / iqr
+    
+    # 5. Clip extreme amplitudes
+    data = np.clip(data, -5, 5)
     
     return data

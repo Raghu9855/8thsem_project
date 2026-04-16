@@ -1,7 +1,6 @@
 import os
 import random
 import numpy as np
-import torch
 import logging
 
 # Path Configurations
@@ -9,8 +8,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
 OUTPUTS_DIR = os.path.join(BASE_DIR, "outputs")
 
-CHBMIT_DIR = r"d:\8thsem project\physionet.org\files\chbmit\1.0.0"
-SEIZEIT2_DIR = r"d:\8thsem project\ds005873"
+CHBMIT_DIR = r"c:\Users\HP\8th sem\chbmit\physionet.org\files\chbmit\1.0.0"
+SEIZEIT2_DIR = r"c:\Users\HP\8th sem\seizeit2"
 
 def setup_logger(name, log_file, level=logging.INFO):
     """Function to setup as many loggers as you want"""
@@ -36,6 +35,8 @@ def setup_logger(name, log_file, level=logging.INFO):
 
 def set_seed(seed=42):
     """Set seeds for reproducibility."""
+    import torch
+    import numpy as np
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)

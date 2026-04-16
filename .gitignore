@@ -1,64 +1,52 @@
-# ==============================================================================
-# Python & Virtual Environments
-# ==============================================================================
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
+# --- EEG SEIZURE DETECTION GITIGNORE ---
 
-# Environments
-.env
-.venv
-env/
+# 1. DATA & CLINICAL RECORDS (CRITICAL - DO NOT COMMIT)
+*.edf
+*.fif
+*.set
+*.fdt
+chbmit/
+seizeit2/
+data/
+raw_data/
+
+# 2. MODELS & CHECKPOINTS
+outputs/saved_models/
+models/*.pth
+models/*.pt
+models/*.h5
+checkpoints/
+
+# 3. EXPERIMENT OUTPUTS
+outputs/cache/
+outputs/reports/
+outputs/plots/
+*.log
+*.png
+*.pdf
+
+# 4. PYTHON ENVIRONMENT
+eeg_env/
 venv/
-ENV/
-env.bak/
-venv.bak/
-
-# ==============================================================================
-# Jupyter Notebooks
-# ==============================================================================
+env/
+bin/
+lib/
+share/
+pyvenv.cfg
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
 .ipynb_checkpoints
-*/.ipynb_checkpoints/*
+.pytest_cache/
 
-# ==============================================================================
-# OS Generated Files
-# ==============================================================================
+# 5. OS SPECIFIC
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 desktop.ini
 
-# ==============================================================================
-# Project-Specific Data & Outputs
-# ==============================================================================
-# Ignore raw and processed data (datasets are typically too large for Git)
-data/chbmit/
-data/seizeit2/
-data/*.edf
-data/*.csv
-data/*.npy
-data/*.npz
-
-# Ignore trained models and large weight files
-outputs/saved_models/
-*.pth
-*.pt
-*.h5
-*.hdf5
-*.ckpt
-
-# Ignore logs if you don't want them in version control (optional, un-comment to ignore)
-# outputs/reports/*.log
-
-# ==============================================================================
-# IDE & Tooling
-# ==============================================================================
-.idea/
-.vscode/
-*.swp
-*.swo
+# 6. PROJECT SCRATCH
+.gemini/
+scratch/
+test_results/

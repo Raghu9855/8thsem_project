@@ -111,13 +111,22 @@ def get_seizeit2_records(data_dir):
         
     return records
 
-def load_all_records(chbmit_dir, seizeit2_dir):
+def load_dataset(dataset_type="CHB"):
     """
-    Loads unified catalog of all EEG records from both datasets.
+    Loads EEG records for a specific dataset. 
+    dataset_type: "CHB" for CHB-MIT or "SEIZE" for SeizeIT2.
     """
-    chbmit_recs = get_chbmit_records(chbmit_dir)
-    seizeit2_recs = get_seizeit2_records(seizeit2_dir)
-    return chbmit_recs + seizeit2_recs
+    from utils import CHBMIT_DIR, SEIZEIT2_DIR
+    records = []
+    
+    if dataset_type.upper() == "CHB":
+        records = get_chbmit_records(CHBMIT_DIR)
+    elif dataset_type.upper() == "SEIZE":
+        records = get_seizeit2_records(SEIZEIT2_DIR)
+    else:
+        raise ValueError(f"Unknown dataset_type: {dataset_type}. Must be 'CHB' or 'SEIZE'.")
+        
+    return records
 
 def load_eeg_metadata(edf_path):
     """
