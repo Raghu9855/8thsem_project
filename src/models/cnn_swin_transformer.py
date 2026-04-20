@@ -12,7 +12,7 @@ class WindowAttention1D(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, x):
+    def forward(self, x, return_attn=False):
         B_, N, C = x.shape
         qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         q, k, v = qkv[0], qkv[1], qkv[2]
@@ -22,6 +22,8 @@ class WindowAttention1D(nn.Module):
 
         x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
         x = self.proj(x)
+        if return_attn:
+            return x, attn
         return x
 
 class SwinBlock1D(nn.Module):
@@ -40,7 +42,7 @@ class SwinBlock1D(nn.Module):
             nn.Linear(dim * 4, dim)
         )
 
-    def forward(self, x):
+    def forward(self, x, return_attn=False):
         B, L, C = x.shape
         # Pad to multiple of window_size
         pad_l = (self.window_size - L % self.window_size) % self.window_size
@@ -61,7 +63,10 @@ class SwinBlock1D(nn.Module):
         x_windows = shifted_x.view(-1, self.window_size, C)
         
         # Attention
-        attn_windows = self.attn(x_windows)
+        if return_attn:
+            attn_windows, weights = self.attn(x_windows, return_attn=True)
+        else:
+            attn_windows = self.attn(x_windows)
         
         # Merge windows
         shifted_x = attn_windows.view(B, L_padded, C)
@@ -77,6 +82,8 @@ class SwinBlock1D(nn.Module):
         if pad_l > 0:
             x = x[:, :L, :]
             
+        if return_attn:
+            return x, weights
         return x
 
 class GradientReversal(torch.autograd.Function):
@@ -114,23 +121,32 @@ class DomainDiscriminator(nn.Module):
 class TemporalTransformer(nn.Module):
     def __init__(self, input_dim, num_heads=4, num_layers=2):
         super().__init__()
-        encoder_layer = nn.TransformerEncoderLayer(
-            d_model=input_dim, 
-            nhead=num_heads, 
-            batch_first=True,
-            dropout=0.1
-        )
-        self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        # Use ModuleList to allow easy attention extraction
+        self.layers = nn.ModuleList([
+            nn.TransformerEncoderLayer(
+                d_model=input_dim, 
+                nhead=num_heads, 
+                batch_first=True,
+                dropout=0.1
+            ) for _ in range(num_layers)
+        ])
         self.norm = nn.LayerNorm(input_dim)
         self.dropout = nn.Dropout(0.1)
         
-    def forward(self, x):
+    def forward(self, x, return_attn=False):
         # x: (B, S, D)
-        x = self.transformer(x)
-        x = self.norm(x)
+        all_attn = []
+        for i, layer in enumerate(self.layers):
+            # For the last layer, we can record the output to see its saliency
+            x = layer(x)
         
-        # Simple Mean Pooling as requested
-        return self.dropout(x.mean(dim=1))
+        x_norm = self.norm(x)
+        out = self.dropout(x_norm.mean(dim=1))
+        
+        if return_attn:
+            # We treat the magnitude of the sequence before pooling as temporal saliency
+            return out, x 
+        return out
 
 class CNNSwinTransformerModel(nn.Module):
     def __init__(self, eeg_channels, latent_dim=64, num_classes=2):
@@ -166,7 +182,7 @@ class CNNSwinTransformerModel(nn.Module):
         torch.nn.init.xavier_uniform_(self.fc1.weight)
         torch.nn.init.xavier_uniform_(self.fc2.weight)
         
-    def forward(self, x_eeg_seq, x_latent_seq, return_features=False):
+    def forward(self, x_eeg_seq, x_latent_seq, return_features=False, xai_mode=False):
         B, S, C, F, T = x_eeg_seq.shape
         _, _, L = x_latent_seq.shape
         
@@ -190,11 +206,15 @@ class CNNSwinTransformerModel(nn.Module):
         x = cnn_out.transpose(1, 2)          # (B*S, T', 32)
         x = self.proj(x)                     # (B*S, T', 64)
         
-        f1 = self.swin1(x)                   
-        x = self.swin2(f1)                    
+        if xai_mode:
+            f1, attn1 = self.swin1(x, return_attn=True)
+            x, attn2 = self.swin2(f1, return_attn=True)
+        else:
+            f1 = self.swin1(x)                   
+            x = self.swin2(f1)                    
         
-        x = x.transpose(1, 2)                # (B*S, 64, T')
-        window_features = self.pool(x).squeeze(-1) 
+        x_post_swin = x.transpose(1, 2)                # (B*S, 64, T')
+        window_features = self.pool(x_post_swin).squeeze(-1) 
         
         # 2. Deep Feature Neutralization (Stripping bias without destroying signal)
         # Use LayerNorm for stability across all runs
@@ -204,7 +224,10 @@ class CNNSwinTransformerModel(nn.Module):
         combined_seq = window_features.view(B, S, -1) 
         
         # Apply Temporal Transformer with Mean Pooling
-        aggregated_features = self.temporal(combined_seq) 
+        if xai_mode:
+            aggregated_features, temp_feat = self.temporal(combined_seq, return_attn=True)
+        else:
+            aggregated_features = self.temporal(combined_seq) 
         
         # Feature Scale Stabilization
         stable_features = self.feature_norm(aggregated_features)
@@ -213,6 +236,14 @@ class CNNSwinTransformerModel(nn.Module):
         out = self.relu(self.fc1(out))
         logits = self.fc2(out)
         
+        if xai_mode:
+            return logits, {
+                'attn1': attn1,
+                'attn2': attn2,
+                'temp_feat': temp_feat,
+                'stable_features': stable_features
+            }
+            
         if return_features:
             return logits, stable_features
         return logits

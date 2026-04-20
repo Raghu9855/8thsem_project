@@ -147,7 +147,7 @@ def train_model(model_name, train_dataset_type='CHB', test_dataset_type='CHB', n
     autoencoder = FeatureAutoencoder(input_feat_dim, latent_dim).to(device)
     ae_path = os.path.join('outputs', 'saved_models', f'ae_{train_dataset_type}.pth')
     if os.path.exists(ae_path):
-        autoencoder.load_state_dict(torch.load(ae_path, map_location=device))
+        autoencoder.load_state_dict(torch.load(ae_path, map_location=device, weights_only=False))
         logger.info(f"Autoencoder strictly loaded from: {ae_path}")
     else:
         logger.warning(f"CRITICAL: Autoencoder not found at {ae_path}. Using random untrained projections.")
@@ -180,7 +180,8 @@ def train_model(model_name, train_dataset_type='CHB', test_dataset_type='CHB', n
     # 3. Training Curriculum
     for epoch in range(num_epochs):
         # STAGE SELECTION: 0=Orientation, 1=LOCKDOWN (Alignment), 2=Refinement
-        stage = 0 if epoch == 0 else (1 if epoch == 1 else 2)
+        # Rebalanced for 10-epoch curriculum
+        stage = 0 if epoch < 2 else (1 if epoch < 5 else 2)
         
         # Domain-Conditional Constants
         c_dann = 0.0 if (stage == 0 or not is_cross) else 0.5 

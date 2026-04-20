@@ -32,8 +32,7 @@ class FeatureAutoencoder(nn.Module):
         return decoded
         
     def encode(self, x):
-        with torch.no_grad():
-            return self.encoder(x)
+        return self.encoder(x)
 
 def get_latent_dimension():
     return 64

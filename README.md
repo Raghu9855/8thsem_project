@@ -1,7 +1,6 @@
 # 🧠 Cross-Domain EEG Seizure Detection: From Clinical Gold-Standard to Wearable Reality
 
-[![Research Paper](https://img.shields.io/badge/Status-Research--Grade-blueviolet?style=for-the-badge)](#)
-[![Datasets](https://img.shields.io/badge/Datasets-CHBMIT_|_SEIZEIT2-darkgreen?style=for-the-badge)](#)
+
 
 A robust, adversarial domain-adaptation pipeline designed to bridge the gap between high-density clinical EEG (23-channels) and sparse wearable sensors (2-channels).
 

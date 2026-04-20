@@ -16,6 +16,7 @@ sys.stdout.flush()
 # Ensure project src is in the system path (handle spaces in paths)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(BASE_DIR, 'src')
+OUTPUTS_DIR = os.path.join(BASE_DIR, 'outputs')
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR) # Insert at beginning to override any shadows
 
@@ -63,11 +64,11 @@ def run_pipeline():
         return
 
     experiments = [
-        # ("CHB", "CHB"), 
+        ("CHB", "CHB"), 
         ("CHB", "SEIZE"),
        
-        # ("SEIZE", "CHB"),
-        # ("SEIZE", "SEIZE")
+        ("SEIZE", "CHB"),
+        ("SEIZE", "SEIZE")
     ]
 
     for train_ds, test_ds in experiments:
@@ -76,7 +77,7 @@ def run_pipeline():
                 model_name='cnn_swin', 
                 train_dataset_type=train_ds, 
                 test_dataset_type=test_ds, 
-                num_epochs=3, 
+                num_epochs=10, 
                 batch_size=16, 
                 device='cpu'
             )
@@ -86,6 +87,25 @@ def run_pipeline():
             traceback.print_exc()
 
     logger.info("All experiments completed.")
+    
+    # --- START XAI SUITE ---
+    logger.info("Initializing XAI (Explainable AI) analysis...")
+    try:
+        from src.explainability import UltimateXAIReseacher
+        # Run analysis on the two within-dataset models
+        models_to_analyze = {
+            "CHB": os.path.join(OUTPUTS_DIR, 'saved_models', 'best_cnn_swin_CHB_to_CHB.pth'),
+            "SEIZE": os.path.join(OUTPUTS_DIR, 'saved_models', 'best_cnn_swin_SEIZE_to_SEIZE.pth')
+        }
+        
+        for ds_name, m_path in models_to_analyze.items():
+            if os.path.exists(m_path):
+                researcher = UltimateXAIReseacher(m_path, ds_name, device='cpu')
+                researcher.run_all()
+    except Exception as e:
+        logger.error(f"XAI Suite failed: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     run_pipeline()
