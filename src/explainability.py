@@ -7,6 +7,7 @@ import seaborn as sns
 from tqdm import tqdm
 from scipy.stats import pearsonr
 from sklearn.metrics import roc_auc_score, confusion_matrix, roc_curve, accuracy_score, precision_score, recall_score, f1_score
+import shap
 
 # Import project-specific modules
 from utils import OUTPUTS_DIR, set_seed, SEIZEIT2_DIR, CHBMIT_DIR
@@ -238,12 +239,73 @@ class UltimateXAIReseacher:
         with open(os.path.join(self.output_dir, 'stability_report.txt'), 'w') as f:
             f.write(f"Explanation Stability Correlation (Pearson): {stab_corr:.4f}\n")
 
+    # --- 6. SHAP ANALYSIS ---
+    def run_shap_analysis(self, sample_idx=0):
+        print("Running SHAP Analysis...")
+        
+        class SHAPWrapper(nn.Module):
+            def __init__(self, model, autoencoder):
+                super().__init__()
+                self.model = model
+                self.autoencoder = autoencoder
+            def forward(self, sig, feat):
+                lat = self.autoencoder.encode(feat)
+                # Return only the logit for class 1 (seizure)
+                return self.model(sig, lat)[:, 1:2]
+                
+        wrapped_model = SHAPWrapper(self.model, self.autoencoder).to(self.device)
+        wrapped_model.eval()
+
+        # Background data for SHAP (use a small batch to save memory/compute)
+        bg_sigs, bg_feats = [], []
+        for i, (s, f, _) in enumerate(self.test_loader):
+            bg_sigs.append(s)
+            bg_feats.append(f)
+            if i >= 0: # just 1 batch (32 samples) is usually enough for GradientExplainer
+                break
+        bg_sig = torch.cat(bg_sigs, dim=0).to(self.device)
+        bg_feat = torch.cat(bg_feats, dim=0).to(self.device)
+
+        test_sig = self.sigs[sample_idx:sample_idx+1].to(self.device)
+        test_feat = self.feats[sample_idx:sample_idx+1].to(self.device)
+
+        # GradientExplainer for PyTorch models
+        explainer = shap.GradientExplainer(wrapped_model, [bg_sig, bg_feat])
+        
+        # Calculate SHAP values
+        shap_values = explainer.shap_values([test_sig, test_feat])
+        
+        # shap_values is a list of arrays corresponding to the inputs
+        # For single output (class 1 logit), shap_values will be a list [shap_sig, shap_feat]
+        if isinstance(shap_values, list) and isinstance(shap_values[0], list):
+            # If it's still multi-class format for some reason
+            shap_sig = shap_values[0][0]
+        elif isinstance(shap_values, list):
+            shap_sig = shap_values[0]
+        else:
+            shap_sig = shap_values
+
+        # shap_sig shape: (1, S, C, F, T)
+        # Aggregate over Channels, FreqBins, TimeSteps to get importance per Sequence Segment
+        saliency_seq = np.abs(shap_sig[0]).mean(axis=(1, 2, 3))
+        
+        plt.figure(figsize=(10, 4))
+        plt.plot(saliency_seq, marker='o', color='purple')
+        plt.title(f"SHAP Feature Importance (EEG Signal) - Sample {sample_idx}")
+        plt.xlabel("Sequence Segment")
+        plt.ylabel("Mean Absolute SHAP Value")
+        plt.grid(True)
+        plt.savefig(os.path.join(self.output_dir, 'shap_importance.png'))
+        plt.close()
+        print("SHAP Analysis complete.")
+
     def run_all(self):
         self.run_performance_audit()
         self.run_attention_analysis()
         self.run_faithfulness_test()
         self.run_error_analysis()
         self.run_stability_check()
+        self.run_shap_analysis()
         print(f"DONE: Research XAI Results for {self.dataset_name} saved in {self.output_dir}")
 
 def run_multi_dataset_research():
