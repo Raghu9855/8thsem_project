@@ -19,11 +19,7 @@ checkpoints/
 
 # 3. EXPERIMENT OUTPUTS
 outputs/cache/
-outputs/reports/
-outputs/plots/
-*.log
-*.png
-*.pdf
+
 
 # 4. PYTHON ENVIRONMENT
 eeg_env/
