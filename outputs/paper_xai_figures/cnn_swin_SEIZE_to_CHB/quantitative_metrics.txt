@@ -1,0 +1,17 @@
+=== Quantitative XAI Metrics: cnn_swin (SEIZE_to_CHB) ===
+Mean |SHAP| per feature:
+  Mean: 0.00007
+  Var: 0.00036
+  RMS: 0.00016
+  Skew: 0.00119
+  Kurt: 0.00674
+  Delta: 0.00210
+  Theta: 0.00014
+  Alpha: 0.00007
+  Beta: 0.00028
+  Gamma: 0.00015
+  PE: 0.00005
+  HFD: 0.00015
+
+Comparative Analysis (SHAP Temporal vs Attention Temporal):
+  Mean Pearson Correlation across 16 valid sequences: -0.0942

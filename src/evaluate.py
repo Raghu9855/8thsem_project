@@ -163,7 +163,7 @@ def evaluate_model(model_name, exp_name, device='cpu'):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--models', nargs='+', default=['cnn_swin'])
+    parser.add_argument('--models', nargs='+', default=['cnn_swin', 'cnn_lstm', 'cnn_gnn'])
     args = parser.parse_args()
     
     experiments = [

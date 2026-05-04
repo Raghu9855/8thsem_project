@@ -1,0 +1,17 @@
+=== Quantitative XAI Metrics: cnn_lstm (SEIZE_to_CHB) ===
+Mean |SHAP| per feature:
+  Mean: 0.00006
+  Var: 0.00021
+  RMS: 0.00008
+  Skew: 0.00068
+  Kurt: 0.00276
+  Delta: 0.00190
+  Theta: 0.00011
+  Alpha: 0.00007
+  Beta: 0.00013
+  Gamma: 0.00014
+  PE: 0.00004
+  HFD: 0.00010
+
+Comparative Analysis (SHAP Temporal vs Attention Temporal):
+  Mean Pearson Correlation across 16 valid sequences: -0.0410

@@ -1,0 +1,10 @@
+2026-05-02 21:40:29,032 INFO Initializing Test Dataloader for SEIZE_to_CHB...
+2026-05-02 21:44:00,227 INFO Initializing Test Dataloader for SEIZE_to_CHB...
+2026-05-02 21:45:09,646 INFO Results for cnn_swin:
+2026-05-02 21:45:09,647 INFO Accuracy:    0.7390
+2026-05-02 21:45:09,647 INFO Precision:   0.5674
+2026-05-02 21:45:09,647 INFO Recall:      0.5161
+2026-05-02 21:45:09,647 INFO Specificity: 0.8333
+2026-05-02 21:45:09,647 INFO F1-Score:    0.5405
+2026-05-02 21:45:09,647 INFO ROC-AUC:     0.7190
+2026-05-02 21:45:09,647 INFO Inference ms/window: 131.79 ms

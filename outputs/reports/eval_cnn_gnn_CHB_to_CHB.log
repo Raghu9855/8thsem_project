@@ -1,0 +1,9 @@
+2026-05-02 21:49:54,351 INFO Initializing Test Dataloader for CHB_to_CHB...
+2026-05-02 21:51:03,800 INFO Results for cnn_gnn:
+2026-05-02 21:51:03,802 INFO Accuracy:    0.8868
+2026-05-02 21:51:03,802 INFO Precision:   0.7759
+2026-05-02 21:51:03,802 INFO Recall:      0.8710
+2026-05-02 21:51:03,802 INFO Specificity: 0.8934
+2026-05-02 21:51:03,802 INFO F1-Score:    0.8207
+2026-05-02 21:51:03,802 INFO ROC-AUC:     0.9338
+2026-05-02 21:51:03,803 INFO Inference ms/window: 131.04 ms

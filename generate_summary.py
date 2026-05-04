@@ -1,73 +1,37 @@
 import os
 import pandas as pd
-import re
-import logging
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('SummaryEngine')
+OUTPUTS_DIR = 'outputs'
+csv_path = os.path.join(OUTPUTS_DIR, 'reports', 'final_metrics_comparison.csv')
 
-def parse_logs():
-    reports_dir = 'outputs/reports'
-    results = []
-    
-    if not os.path.exists(reports_dir):
-        logger.error(f"Reports directory {reports_dir} not found.")
-        return
-        
-    for file in os.listdir(reports_dir):
-        if file.endswith('.log'):
-            path = os.path.join(reports_dir, file)
-            with open(path, 'r') as f:
-                content = f.read()
-                
-            # Extract final AUC using regex
-            match = re.search(r"FINAL TEST AUC \((.*?)\): ([\d\.]+)", content)
-            if match:
-                pair = match.group(1)
-                auc = float(match.group(2))
-                
-                # Extract specifics
-                sens = re.search(r"FINAL TEST SENSITIVITY: ([\d\.]+)", content)
-                spec = re.search(r"FINAL TEST SPECIFICITY: ([\d\.]+)", content)
-                
-                results.append({
-                    'Experiment': pair,
-                    'ROC-AUC': auc,
-                    'Sensitivity': float(sens.group(1)) if sens else 'N/A',
-                    'Specificity': float(spec.group(1)) if spec else 'N/A'
-                })
-                
-    if results:
-        df = pd.DataFrame(results)
-        print("\n" + "="*50)
-        print("   FINAL RESEARCH MATRIX SUMMARY (FOR MENTOR)")
-        print("="*50)
-        print(df.to_string(index=False))
-        print("="*50)
-        
-        # SAVE CSV
-        df.to_csv('outputs/reports/final_summary.csv', index=False)
-        logger.info("Summary saved to outputs/reports/final_summary.csv")
-        
-        # GENERATE PLOT
-        try:
-            import matplotlib.pyplot as plt
-            os.makedirs('outputs/plots', exist_ok=True)
-            plt.figure(figsize=(12, 6))
-            df.set_index('Experiment')[['ROC-AUC', 'Sensitivity', 'Specificity']].plot(kind='bar', ax=plt.gca())
-            plt.title('Clinical Generalization Matrix: Final Performance Metrics')
-            plt.ylabel('Score (0.0 - 1.0)')
-            plt.ylim(0, 1.1)
-            plt.xticks(rotation=15)
-            plt.grid(axis='y', linestyle='--', alpha=0.7)
-            plt.tight_layout()
-            plot_path = 'outputs/plots/research_summary.png'
-            plt.savefig(plot_path)
-            logger.info(f"Comparison chart saved to {plot_path}")
-        except Exception as e:
-            logger.error(f"Failed to generate plot: {e}")
-    else:
-        logger.warning("No completed experiments found in logs.")
+if not os.path.exists(csv_path):
+    print(f"Error: {csv_path} not found. You must run evaluate.py completely at least once.")
+    exit(1)
 
-if __name__ == "__main__":
-    parse_logs()
+print(f"Loading existing metrics from: {csv_path}")
+df = pd.read_csv(csv_path)
+
+metrics_to_plot = {
+    'Accuracy': 'master_accuracy_comparison.png',
+    'Precision': 'master_precision_comparison.png',
+    'Sensitivity (Recall)': 'master_recall_comparison.png',
+    'ROC-AUC': 'master_performance_comparison.png'
+}
+
+for metric, filename in metrics_to_plot.items():
+    plt.figure(figsize=(10, 6))
+    sns.barplot(data=df, x='Experiment', y=metric, hue='Model', palette='viridis')
+    if metric == 'ROC-AUC':
+        plt.axhline(0.60, color='red', linestyle='--', alpha=0.6, label='Cross-Domain Goal (0.60)')
+        plt.axhline(0.80, color='green', linestyle='--', alpha=0.6, label='Intra-Domain Goal (0.80)')
+    plt.title(f'Final Model Performance Comparison ({metric})')
+    plt.ylim(0.0, 1.0)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig(os.path.join(OUTPUTS_DIR, 'plots', filename))
+    plt.close()
+    print(f"Generated: outputs/plots/{filename}")
+
+print("\n[SUCCESS] All 4 master performance charts have been instantly generated!")

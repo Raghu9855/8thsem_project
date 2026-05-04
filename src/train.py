@@ -122,6 +122,8 @@ def train_model(model_name, train_dataset_type='CHB', test_dataset_type='CHB', n
     from segmentation import generate_window_metadata
     from labeling import label_windows
     from models.cnn_swin_transformer import CNNSwinTransformerModel
+    from models.cnn_lstm import CNNLSTMModel
+    from models.cnn_gnn import CNNGNNModel
     from autoencoder_reduction import FeatureAutoencoder
 
     logger.info(f"Trajectory Lock: Train on {train_dataset_type}, Test on {test_dataset_type}")
@@ -155,7 +157,12 @@ def train_model(model_name, train_dataset_type='CHB', test_dataset_type='CHB', n
     autoencoder.eval()
     for p in autoencoder.parameters(): p.requires_grad = False
     
-    model = CNNSwinTransformerModel(eeg_channels, latent_dim=latent_dim).to(device)
+    if model_name == 'cnn_lstm':
+        model = CNNLSTMModel(eeg_channels, latent_dim=latent_dim).to(device)
+    elif model_name == 'cnn_gnn':
+        model = CNNGNNModel(eeg_channels, latent_dim=latent_dim).to(device)
+    else:
+        model = CNNSwinTransformerModel(eeg_channels, latent_dim=latent_dim).to(device)
     ema = EMA(model) 
     
     # STANDARD OPTIMIZATION STARTING A BIT HIGHER TO PREVENT EARLY UNDERFITTING

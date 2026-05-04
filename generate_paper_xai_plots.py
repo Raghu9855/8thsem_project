@@ -12,19 +12,26 @@ from scipy.stats import pearsonr
 
 warnings.filterwarnings('ignore')
 
-from utils import OUTPUTS_DIR, set_seed, CHBMIT_DIR
+from utils import OUTPUTS_DIR, set_seed, CHBMIT_DIR, SEIZEIT2_DIR
 from dataset_builder import get_dataloaders
-from data_loader import get_chbmit_records
+from data_loader import get_chbmit_records, get_seizeit2_records
 from segmentation import generate_window_metadata
 from labeling import label_windows
 from autoencoder_reduction import FeatureAutoencoder
 from models.cnn_swin_transformer import CNNSwinTransformerModel
+from models.cnn_lstm import CNNLSTMModel
+from models.cnn_gnn import CNNGNNModel
 
-if __name__ == '__main__':
-    # Setup
+def generate_plots_for_model(model_name, exp_name):
+    print(f"\n========== XAI FOR {model_name.upper()} on {exp_name} ==========")
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model_path = os.path.join('outputs', 'saved_models', 'best_cnn_swin_CHB_to_CHB.pth')
-    out_dir = os.path.join(OUTPUTS_DIR, 'paper_xai_figures')
+    model_path = os.path.join('outputs', 'saved_models', f'best_{model_name}_{exp_name}.pth')
+    
+    if not os.path.exists(model_path):
+        print(f"Skipping {model_name} on {exp_name}: Checkpoint not found at {model_path}")
+        return
+
+    out_dir = os.path.join(OUTPUTS_DIR, 'paper_xai_figures', f'{model_name}_{exp_name}')
     os.makedirs(out_dir, exist_ok=True)
     set_seed(42)
 
@@ -35,13 +42,24 @@ if __name__ == '__main__':
     autoencoder.eval()
 
     eeg_channels = checkpoint['eeg_channels']
-    model = CNNSwinTransformerModel(eeg_channels=eeg_channels).to(device)
+    
+    if model_name == 'cnn_lstm':
+        model = CNNLSTMModel(eeg_channels=eeg_channels).to(device)
+    elif model_name == 'cnn_gnn':
+        model = CNNGNNModel(eeg_channels=eeg_channels).to(device)
+    else:
+        model = CNNSwinTransformerModel(eeg_channels=eeg_channels).to(device)
+        
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
 
-    # Load test data
-    records = get_chbmit_records(CHBMIT_DIR)
-    records = records[:2] 
+    # Load test data based on target dataset
+    target_ds = exp_name.split('_to_')[1]
+    if target_ds == 'CHB':
+        records = get_chbmit_records(CHBMIT_DIR)
+    else:
+        records = get_seizeit2_records(SEIZEIT2_DIR)
+        
     window_metadata = generate_window_metadata(records, window_size_sec=5.0)
     labeled_windows = label_windows(window_metadata)
     _, _, test_loader, _ = get_dataloaders(labeled_windows, batch_size=16)
@@ -58,8 +76,15 @@ if __name__ == '__main__':
     wrapped_model = SHAPWrapper(model, autoencoder).to(device)
     wrapped_model.eval()
 
-    # Collect a batch with mixed labels
-    sigs, feats, labels = next(iter(test_loader))
+    # Collect a batch with mixed labels (ensure at least 1 seizure for paper plots)
+    sigs, feats, labels = None, None, None
+    for s, f, l in test_loader:
+        if l.sum() > 0:
+            sigs, feats, labels = s, f, l
+            break
+            
+    if sigs is None:
+        sigs, feats, labels = next(iter(test_loader))
     bg_sig, bg_feat = sigs.to(device), feats.to(device)
 
     print(f"Computing SHAP values for batch of size {len(labels)}...")
@@ -74,7 +99,6 @@ if __name__ == '__main__':
     else:
         shap_sig, shap_feat = shap_values, shap_values
 
-    # Remove the trailing class dimension if it exists
     if shap_sig.shape[-1] == 1:
         shap_sig = np.squeeze(shap_sig, axis=-1)
     if shap_feat.shape[-1] == 1:
@@ -84,31 +108,28 @@ if __name__ == '__main__':
     C = eeg_channels
     feature_names = ['Mean', 'Var', 'RMS', 'Skew', 'Kurt', 'Delta', 'Theta', 'Alpha', 'Beta', 'Gamma', 'PE', 'HFD']
 
-    # Reshape and mean over S and C
     shap_feat_reshaped = shap_feat.reshape(B, S, C, 12)
-    shap_feat_raw_agg = shap_feat_reshaped.mean(axis=(1, 2)) # Shape: (B, 12)
+    shap_feat_raw_agg = shap_feat_reshaped.mean(axis=(1, 2)) 
 
     feat_np = test_feat.cpu().numpy()
     feat_reshaped = feat_np.reshape(B, S, C, 12)
-    feat_agg = feat_reshaped.mean(axis=(1, 2)) # Shape: (B, 12)
+    feat_agg = feat_reshaped.mean(axis=(1, 2)) 
 
-    # --- 1. GLOBAL EXPLANATIONS ---
     print("Generating Global Explanations (Beeswarm & Bar)...")
     plt.figure(figsize=(8, 6))
     shap.summary_plot(shap_feat_raw_agg, features=feat_agg, feature_names=feature_names, show=False)
-    plt.title("SHAP Summary (Global Feature Importance)")
+    plt.title(f"SHAP Summary ({model_name} - {exp_name})")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, 'shap_beeswarm.png'))
     plt.close()
 
     plt.figure(figsize=(8, 6))
     shap.summary_plot(shap_feat_raw_agg, features=feat_agg, feature_names=feature_names, plot_type="bar", show=False)
-    plt.title("Mean |SHAP| (Global Feature Importance)")
+    plt.title(f"Mean |SHAP| ({model_name} - {exp_name})")
     plt.tight_layout()
     plt.savefig(os.path.join(out_dir, 'shap_bar.png'))
     plt.close()
 
-    # --- 2. LOCAL EXPLANATIONS ---
     print("Generating Local Explanations (Waterfall)...")
     with torch.no_grad():
         lat = autoencoder.encode(test_feat)
@@ -146,7 +167,6 @@ if __name__ == '__main__':
     plot_waterfall(correct_idx, "Correct")
     plot_waterfall(incorrect_idx, "Incorrect")
 
-    # --- 3. DEPENDENCE PLOT ---
     print("Generating Dependence Plots...")
     delta_idx = feature_names.index('Delta')
     theta_idx = feature_names.index('Theta')
@@ -157,14 +177,12 @@ if __name__ == '__main__':
     plt.savefig(os.path.join(out_dir, 'shap_dependence.png'))
     plt.close()
 
-    # --- 4. COMPARATIVE ANALYSIS (SHAP vs ATTENTION) ---
     print("Generating Comparative Analysis...")
-    attn_temporal = xai['temp_feat'].norm(dim=-1).cpu().numpy() # Shape: (B, S)
-    shap_temporal = np.abs(shap_sig).mean(axis=(2, 3, 4)) # Shape: (B, S)
+    attn_temporal = xai['temp_feat'].norm(dim=-1).cpu().numpy()
+    shap_temporal = np.abs(shap_sig).mean(axis=(2, 3, 4)) 
 
     correlations = []
     for i in range(B):
-        # Handle zero variance or NaN issues
         if np.var(attn_temporal[i]) == 0 or np.var(shap_temporal[i]) == 0:
             continue
         corr, _ = pearsonr(attn_temporal[i], shap_temporal[i])
@@ -174,24 +192,21 @@ if __name__ == '__main__':
     avg_corr = np.nanmean(correlations) if len(correlations) > 0 else 0.0
 
     with open(os.path.join(out_dir, 'quantitative_metrics.txt'), 'w') as f:
-        f.write("=== Quantitative XAI Metrics ===\n")
+        f.write(f"=== Quantitative XAI Metrics: {model_name} ({exp_name}) ===\n")
         f.write(f"Mean |SHAP| per feature:\n")
         mean_abs_shap = np.abs(shap_feat_raw_agg).mean(axis=0)
         for name, val in zip(feature_names, mean_abs_shap):
             f.write(f"  {name}: {val:.5f}\n")
         f.write(f"\nComparative Analysis (SHAP Temporal vs Attention Temporal):\n")
         f.write(f"  Mean Pearson Correlation across {len(correlations)} valid sequences: {avg_corr:.4f}\n")
-        f.write(f"  (High correlation means SHAP signal importance aligns with Transformer Attention)\n")
 
-    # Plot overlay for the first correct sample
     if len(correct_idx) > 0:
         i = correct_idx[0]
-        sig_1d = test_sig[i].cpu().numpy().reshape(-1) # flattened
+        sig_1d = test_sig[i].cpu().numpy().reshape(-1) 
         s_len = len(shap_temporal[i])
         attn_up = np.repeat(attn_temporal[i], len(sig_1d) // s_len)
         shap_up = np.repeat(shap_temporal[i], len(sig_1d) // s_len)
         
-        # pad remaining if length mismatch
         rem = len(sig_1d) - len(attn_up)
         if rem > 0:
             attn_up = np.pad(attn_up, (0, rem), 'edge')
@@ -206,13 +221,30 @@ if __name__ == '__main__':
         ax2.plot(attn_up, color='orange', alpha=0.8, label='Attention Saliency', linestyle='--')
         ax2.plot(shap_up, color='purple', alpha=0.8, label='SHAP Saliency')
         
-        # Add legend combining both axes
         lines_1, labels_1 = ax1.get_legend_handles_labels()
         lines_2, labels_2 = ax2.get_legend_handles_labels()
         ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc="upper right")
         
-        plt.title("Comparative Overlay: Signal vs Attention vs SHAP")
+        plt.title(f"Comparative Overlay: {model_name} ({exp_name})")
         plt.savefig(os.path.join(out_dir, 'comparative_overlay.png'))
         plt.close()
 
-    print("All paper figures generated in:", out_dir)
+if __name__ == '__main__':
+    experiments = [
+        "CHB_to_CHB",
+        "CHB_to_SEIZE",
+        "SEIZE_to_CHB",
+        "SEIZE_to_SEIZE"
+    ]
+    models = ['cnn_swin', 'cnn_lstm', 'cnn_gnn']
+    
+    for m in models:
+        for exp in experiments:
+            try:
+                generate_plots_for_model(m, exp)
+            except Exception as e:
+                print(f"Error generating XAI for {m} on {exp}: {e}")
+                import traceback
+                traceback.print_exc()
+
+    print("\n[SUCCESS] All paper XAI figures generated for all models and variations!")

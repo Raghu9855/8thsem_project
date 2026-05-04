@@ -71,37 +71,31 @@ def run_pipeline():
         ("SEIZE", "SEIZE")
     ]
 
-    for train_ds, test_ds in experiments:
-        try:
-            train_model(
-                model_name='cnn_swin', 
-                train_dataset_type=train_ds, 
-                test_dataset_type=test_ds, 
-                num_epochs=10, 
-                batch_size=16, 
-                device='cpu'
-            )
-        except Exception as e:
-            logger.error(f"Experiment {train_ds} -> {test_ds} failed: {e}")
-            import traceback
-            traceback.print_exc()
+    models_to_train = ['cnn_swin', 'cnn_lstm', 'cnn_gnn']
+
+    for m_name in models_to_train:
+        for train_ds, test_ds in experiments:
+            try:
+                train_model(
+                    model_name=m_name, 
+                    train_dataset_type=train_ds, 
+                    test_dataset_type=test_ds, 
+                    num_epochs=10, 
+                    batch_size=16, 
+                    device='cpu'
+                )
+            except Exception as e:
+                logger.error(f"Experiment {m_name} {train_ds} -> {test_ds} failed: {e}")
+                import traceback
+                traceback.print_exc()
 
     logger.info("All experiments completed.")
     
     # --- START XAI SUITE ---
     logger.info("Initializing XAI (Explainable AI) analysis...")
     try:
-        from src.explainability import UltimateXAIReseacher
-        # Run analysis on the two within-dataset models
-        models_to_analyze = {
-            "CHB": os.path.join(OUTPUTS_DIR, 'saved_models', 'best_cnn_swin_CHB_to_CHB.pth'),
-            "SEIZE": os.path.join(OUTPUTS_DIR, 'saved_models', 'best_cnn_swin_SEIZE_to_SEIZE.pth')
-        }
-        
-        for ds_name, m_path in models_to_analyze.items():
-            if os.path.exists(m_path):
-                researcher = UltimateXAIReseacher(m_path, ds_name, device='cpu')
-                researcher.run_all()
+        from src.explainability import run_multi_dataset_research
+        run_multi_dataset_research()
     except Exception as e:
         logger.error(f"XAI Suite failed: {e}")
         import traceback

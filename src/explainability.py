@@ -17,20 +17,25 @@ from segmentation import generate_window_metadata
 from labeling import label_windows
 from autoencoder_reduction import FeatureAutoencoder
 from models.cnn_swin_transformer import CNNSwinTransformerModel
+from models.cnn_lstm import CNNLSTMModel
+from models.cnn_gnn import CNNGNNModel
 
 class UltimateXAIReseacher:
     """
     Consolidated, research-grade XAI pipeline for the CNN-Swin Transformer model.
     Focuses on interpreting existing trained models for CHB and SEIZE datasets.
     """
-    def __init__(self, model_path, dataset_name, device='cpu'):
+    def __init__(self, model_name, exp_name, device='cpu'):
         self.device = torch.device(device)
-        self.dataset_name = dataset_name
-        self.output_dir = os.path.join(OUTPUTS_DIR, f'xai_results_{dataset_name}')
+        self.exp_name = exp_name
+        self.dataset_name = exp_name.split('_to_')[-1]
+        self.model_name = model_name
+        self.output_dir = os.path.join(OUTPUTS_DIR, f'xai_results_{model_name}_{exp_name}')
         os.makedirs(self.output_dir, exist_ok=True)
         set_seed(42)
         
-        print(f"\n[PHASE 1] Analyzing Model: {os.path.basename(model_path)} for {self.dataset_name}")
+        model_path = os.path.join(OUTPUTS_DIR, 'saved_models', f'best_{model_name}_{exp_name}.pth')
+        print(f"\n[PHASE 1] Analyzing Model: {os.path.basename(model_path)} for {self.exp_name}")
         
         # Load Architecture & Weights
         self.checkpoint = torch.load(model_path, map_location=self.device, weights_only=False)
@@ -38,7 +43,13 @@ class UltimateXAIReseacher:
         self.autoencoder.load_state_dict(self.checkpoint['autoencoder_state_dict'])
         self.autoencoder.eval()
         
-        self.model = CNNSwinTransformerModel(eeg_channels=self.checkpoint['eeg_channels']).to(self.device)
+        if model_name == 'cnn_lstm':
+            self.model = CNNLSTMModel(eeg_channels=self.checkpoint['eeg_channels']).to(self.device)
+        elif model_name == 'cnn_gnn':
+            self.model = CNNGNNModel(eeg_channels=self.checkpoint['eeg_channels']).to(self.device)
+        else:
+            self.model = CNNSwinTransformerModel(eeg_channels=self.checkpoint['eeg_channels']).to(self.device)
+            
         self.model.load_state_dict(self.checkpoint['model_state_dict'])
         self.model.eval()
         
@@ -69,12 +80,17 @@ class UltimateXAIReseacher:
                 s, f = s.to(self.device), f.to(self.device)
                 lat = self.autoencoder.encode(f)
                 logits = self.model(s, lat)
-                probs = torch.softmax(logits, dim=1)[:, 1].cpu().numpy()
+                if logits.shape[1] > 1: logits_cls1 = logits[:, 1:2]
+                else: logits_cls1 = logits
+                probs = torch.sigmoid(logits_cls1).squeeze(-1).cpu().numpy()
                 all_probs.extend(probs)
                 all_labels.extend(l.numpy())
         
         all_probs, all_labels = np.array(all_probs), np.array(all_labels)
-        preds = (all_probs >= 0.5).astype(int)
+        fpr, tpr, thresholds = roc_curve(all_labels, all_probs)
+        optimal_idx = np.argmax(tpr - fpr)
+        self.optimal_thresh = thresholds[optimal_idx]
+        preds = (all_probs >= self.optimal_thresh).astype(int)
         
         # Metrics
         acc = accuracy_score(all_labels, preds)
@@ -111,6 +127,10 @@ class UltimateXAIReseacher:
         with torch.no_grad():
             lat = self.autoencoder.encode(feat)
             _, xai = self.model(sig, lat, xai_mode=True)
+            
+        if xai.get('attn1') is None:
+            print(f"Skipping detailed attention plots (not supported by {self.model_name}).")
+            return
         
         # Layer & Head Wise Map (using Swin Block 1)
         attn1 = xai['attn1'][0].cpu().numpy() # (H, W, W)
@@ -193,8 +213,12 @@ class UltimateXAIReseacher:
                 s, f = s.to(self.device), f.to(self.device)
                 lat = self.autoencoder.encode(f)
                 logits, xai = self.model(s, lat, xai_mode=True)
-                probs = torch.softmax(logits, dim=1)[:, 1].cpu().numpy()
-                preds = (probs >= 0.5).astype(int)
+                if logits.shape[1] > 1: logits_cls1 = logits[:, 1:2]
+                else: logits_cls1 = logits
+                probs = torch.sigmoid(logits_cls1).squeeze(-1).cpu().numpy()
+                
+                thresh_to_use = getattr(self, 'optimal_thresh', 0.5)
+                preds = (probs >= thresh_to_use).astype(int)
                 
                 for i in range(len(l)):
                     if preds[i] != l[i].item():
@@ -309,19 +333,24 @@ class UltimateXAIReseacher:
         print(f"DONE: Research XAI Results for {self.dataset_name} saved in {self.output_dir}")
 
 def run_multi_dataset_research():
-    # Paths for your 'got models'
-    chb_model_path = os.path.join('outputs', 'saved_models', 'best_cnn_swin_CHB_to_CHB.pth')
-    seize_model_path = os.path.join('outputs', 'saved_models', 'best_cnn_swin_SEIZE_to_SEIZE.pth')
-    
+    experiments = [
+        "CHB_to_CHB",
+        "CHB_to_SEIZE",
+        "SEIZE_to_CHB",
+        "SEIZE_to_SEIZE"
+    ]
+    models = ['cnn_swin', 'cnn_lstm', 'cnn_gnn']
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
-    if os.path.exists(chb_model_path):
-        researcher_chb = UltimateXAIReseacher(chb_model_path, "CHB", device=device)
-        researcher_chb.run_all()
-    
-    if os.path.exists(seize_model_path):
-        researcher_seize = UltimateXAIReseacher(seize_model_path, "SEIZE", device=device)
-        researcher_seize.run_all()
+    for m in models:
+        for exp in experiments:
+            model_path = os.path.join('outputs', 'saved_models', f'best_{m}_{exp}.pth')
+            if os.path.exists(model_path):
+                researcher = UltimateXAIReseacher(m, exp, device=device)
+                try:
+                    researcher.run_all()
+                except Exception as e:
+                    print(f"Failed XAI for {m} {exp}: {e}")
 
 if __name__ == "__main__":
     run_multi_dataset_research()

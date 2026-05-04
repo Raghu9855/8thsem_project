@@ -1,0 +1,9 @@
+2026-05-02 21:47:56,875 INFO Initializing Test Dataloader for SEIZE_to_CHB...
+2026-05-02 21:49:06,982 INFO Results for cnn_lstm:
+2026-05-02 21:49:06,982 INFO Accuracy:    0.7390
+2026-05-02 21:49:06,982 INFO Precision:   0.5941
+2026-05-02 21:49:06,982 INFO Recall:      0.3871
+2026-05-02 21:49:06,983 INFO Specificity: 0.8880
+2026-05-02 21:49:06,983 INFO F1-Score:    0.4688
+2026-05-02 21:49:06,983 INFO ROC-AUC:     0.6523
+2026-05-02 21:49:06,983 INFO Inference ms/window: 132.96 ms
