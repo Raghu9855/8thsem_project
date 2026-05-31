@@ -5,10 +5,13 @@
 *.fif
 *.set
 *.fdt
+*.bdf
+*.cnt
 chbmit/
 seizeit2/
 data/
 raw_data/
+uploads/
 
 # 2. MODELS & CHECKPOINTS
 outputs/saved_models/
@@ -17,9 +20,14 @@ models/*.pt
 models/*.h5
 checkpoints/
 
-# 3. EXPERIMENT OUTPUTS
+# 3. EXPERIMENT OUTPUTS (all generated results)
 outputs/cache/
-
+outputs/clinical_reports/
+outputs/plots/
+outputs/reports/
+outputs/paper_xai_figures/
+outputs/xai/
+outputs/xai_results_*/
 
 # 4. PYTHON ENVIRONMENT
 eeg_env/

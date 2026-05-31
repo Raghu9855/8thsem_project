@@ -1,9 +1,0 @@
-2026-05-02 21:45:57,338 INFO Initializing Test Dataloader for CHB_to_CHB...
-2026-05-02 21:47:08,446 INFO Results for cnn_lstm:
-2026-05-02 21:47:08,447 INFO Accuracy:    0.8868
-2026-05-02 21:47:08,447 INFO Precision:   0.7892
-2026-05-02 21:47:08,447 INFO Recall:      0.8452
-2026-05-02 21:47:08,447 INFO Specificity: 0.9044
-2026-05-02 21:47:08,447 INFO F1-Score:    0.8162
-2026-05-02 21:47:08,447 INFO ROC-AUC:     0.9337
-2026-05-02 21:47:08,447 INFO Inference ms/window: 135.14 ms

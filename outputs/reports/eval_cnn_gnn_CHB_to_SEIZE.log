@@ -1,9 +1,0 @@
-2026-05-02 21:51:04,738 INFO Initializing Test Dataloader for CHB_to_SEIZE...
-2026-05-02 21:51:51,443 INFO Results for cnn_gnn:
-2026-05-02 21:51:51,443 INFO Accuracy:    0.6224
-2026-05-02 21:51:51,443 INFO Precision:   0.3679
-2026-05-02 21:51:51,443 INFO Recall:      0.5584
-2026-05-02 21:51:51,444 INFO Specificity: 0.6461
-2026-05-02 21:51:51,444 INFO F1-Score:    0.4435
-2026-05-02 21:51:51,444 INFO ROC-AUC:     0.6281
-2026-05-02 21:51:51,444 INFO Inference ms/window: 43.28 ms
